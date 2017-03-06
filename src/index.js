@@ -1,6 +1,6 @@
 import Promise from 'pinkie';
 import OS from 'os-family';
-import { createClient, createAutomateClient } from 'browserstack';
+import { createClient } from 'browserstack';
 import { Local as BrowserStackLocal } from 'browserstack-local';
 import wait from './utils/wait';
 
@@ -12,7 +12,6 @@ export default class BrowserStackConnector {
         this.options   = options;
 
         this.client          = createClient({ username, password: accessKey });
-        this.automateClient  = createAutomateClient({ username, password: accessKey });
         this.localConnection = null;
     }
 
@@ -26,36 +25,36 @@ export default class BrowserStackConnector {
     }
 
     async _getWorker (id) {
-        const maxAttempts    = 20;
+        const getWorker = () => {
+            return new Promise(resolve => {
+                this.client.getWorker(id, (err, worker) => resolve(worker));
+            });
+        };
+
+        const maxAttempts    = 30;
         const requestTimeout = 10000;
 
         let attempts = 0;
-        let worker   = null;
 
-        const filterById = w => w.id === id;
+        while (attempts++ <= maxAttempts) {
+            const worker = await getWorker();
 
-        while (!worker && attempts++ <= maxAttempts) {
-            const workers       = await this._getWorkers();
-            const matchedWorker = workers && workers.filter(filterById)[0];
+            if (worker && worker.status === 'running')
+                return worker;
 
-            if (matchedWorker)
-                worker = matchedWorker.id;
-            else
-                await wait(requestTimeout);
+            await wait(requestTimeout);
         }
-
-        return worker;
     }
 
     async _getMaxAvailableMachines () {
         return new Promise((resolve, reject) => {
-            this.automateClient.getPlan((err, plan) => {
+            this.client.getApiStatus((err, status) => {
                 if (err) {
                     this._log(err);
                     reject(err);
                 }
                 else
-                    resolve(plan.parallel_sessions_max_allowed);
+                    resolve(status.sessions_limit);
             });
         });
     }
