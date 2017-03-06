@@ -73,7 +73,7 @@ export default class BrowserStackConnector {
     }
 
     async startBrowser (browserSettings, url, { jobName, build } = {}, timeout = null) {
-        function createWorker () {
+        const createWorker = () => {
             return new Promise((resolve, reject) => {
                 const settings = {
                     os:              browserSettings.os,
@@ -97,7 +97,7 @@ export default class BrowserStackConnector {
                     resolve(worker.id);
                 });
             });
-        }
+        };
 
         const workerId = await createWorker();
 
