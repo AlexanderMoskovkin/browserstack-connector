@@ -9,8 +9,10 @@ export default class BrowserStackConnector {
     constructor (username, accessKey, options = {}) {
         this.username  = username;
         this.accessKey = accessKey;
-        this.options   = options;
 
+        const { connectorLogging = true } = options;
+
+        this.options         = { connectorLogging };
         this.client          = createClient({ username, password: accessKey });
         this.localConnection = null;
     }
