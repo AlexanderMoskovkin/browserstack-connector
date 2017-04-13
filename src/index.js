@@ -12,9 +12,10 @@ export default class BrowserStackConnector {
 
         const { connectorLogging = true } = options;
 
-        this.options         = { connectorLogging };
-        this.client          = createClient({ username, password: accessKey });
-        this.localConnection = null;
+        this.options          = { connectorLogging };
+        this.client           = createClient({ username, password: accessKey });
+        this.localConnection  = null;
+        this.tunnelIdentifier = Date.now();
     }
 
     _log (message) {
@@ -85,7 +86,8 @@ export default class BrowserStackConnector {
                     url:             url,
                     timeout:         timeout || 1800,
                     name:            jobName,
-                    build:           build
+                    build:           build,
+                    localIdentifier: this.tunnelIdentifier
                 };
 
                 this.client.createWorker(settings, (err, worker) => {
@@ -123,7 +125,8 @@ export default class BrowserStackConnector {
         const opts = {
             'key':                    this.accessKey,
             'logfile':                OS.win ? 'NUL' : '/dev/null',
-            'enable-logging-for-api': true
+            'enable-logging-for-api': true,
+            'localIdentifier':        this.tunnelIdentifier
         };
 
         this.localConnection = new BrowserStackLocal();
