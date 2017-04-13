@@ -103,8 +103,11 @@ export default class BrowserStackConnector {
         };
 
         const workerId = await createWorker();
+        const worker   = await this._getWorker(workerId);
 
-        return await this._getWorker(workerId);
+        this._log(`${browserSettings.name} started. See ${worker.browser_url}`);
+
+        return worker;
     }
 
     stopBrowser (workerId) {
