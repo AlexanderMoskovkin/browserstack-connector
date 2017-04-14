@@ -1,12 +1,19 @@
+import os from 'os';
 import Promise from 'pinkie';
 import OS from 'os-family';
 import { createClient } from 'browserstack';
 import { Local as BrowserStackLocal } from 'browserstack-local';
+import uid from 'uid';
 import wait from './utils/wait';
+import Hub from './hub.js';
 
+const DEFAULT_BROWSER_OPENING_MAX_ATTEMPT = 3;
+const DEFAULT_BROWSER_OPENING_TIMEOUT     = 60 * 1000;
+
+const DEFAULT_HUB_PORT = 1000;
 
 export default class BrowserStackConnector {
-    constructor (username, accessKey, options = {}) {
+    constructor (username, accessKey, servicePort, options = {}) {
         this.username  = username;
         this.accessKey = accessKey;
 
@@ -16,6 +23,8 @@ export default class BrowserStackConnector {
         this.client           = createClient({ username, password: accessKey });
         this.localConnection  = null;
         this.tunnelIdentifier = Date.now();
+        this.hubPort          = servicePort || DEFAULT_HUB_PORT;
+        this.hub              = new Hub(this.hubPort);
     }
 
     _log (message) {
@@ -74,7 +83,9 @@ export default class BrowserStackConnector {
         return worker && worker.browser_url;
     }
 
-    async startBrowser (browserSettings, url, { jobName, build } = {}, timeout = null) {
+    async _startBrowser (browserSettings, url, { jobName, build }, { workingTimeout, openingTimeout }) {
+        const browserId = uid(10);
+
         const createWorker = () => {
             return new Promise((resolve, reject) => {
                 const settings = {
@@ -83,8 +94,8 @@ export default class BrowserStackConnector {
                     browser:         browserSettings.name || null,
                     browser_version: browserSettings.version || 'latest',
                     device:          browserSettings.device || null,
-                    url:             url,
-                    timeout:         timeout || 1800,
+                    url:             `http://${os.hostname()}:${this.hubPort}/${browserId}?url=${url}`,
+                    timeout:         workingTimeout || 1800,
                     name:            jobName,
                     build:           build,
                     localIdentifier: this.tunnelIdentifier
@@ -105,7 +116,61 @@ export default class BrowserStackConnector {
         const workerId = await createWorker();
         const worker   = await this._getWorker(workerId);
 
+        const waitForUrlOpened = new Promise((resolve, reject) => {
+            let timeoutId = null;
+
+            const hubHandler = id => {
+                if (id === browserId) {
+                    this.hub.removeListener('open', hubHandler);
+
+                    clearTimeout(timeoutId);
+                    resolve();
+                }
+            };
+
+            timeoutId = setTimeout(async () => {
+                this.hub.removeListener('open', hubHandler);
+
+                await this.stopBrowser(worker.id);
+
+                reject('Browser starting timeout expired');
+            }, openingTimeout);
+
+            this.hub.addListener('open', hubHandler);
+        });
+
+        await waitForUrlOpened;
+
         this._log(`${browserSettings.name} started. See ${worker.browser_url}`);
+
+        return worker;
+    }
+
+    async startBrowser (browserSettings, url, { jobName, build } = {}, { maxAttepts, openingTimeout, workingTimeout } = {}) {
+        let worker  = null;
+        let attempt = 0;
+        let error   = null;
+
+        maxAttepts     = maxAttepts || DEFAULT_BROWSER_OPENING_MAX_ATTEMPT;
+        openingTimeout = openingTimeout || DEFAULT_BROWSER_OPENING_TIMEOUT;
+
+        while (attempt < maxAttepts && !worker) {
+            try {
+                error  = null;
+                worker = await this._startBrowser(browserSettings, url, { jobName, build }, {
+                    workingTimeout,
+                    openingTimeout
+                });
+            }
+            catch (err) {
+                error = err;
+
+                attempt++;
+            }
+        }
+
+        if (error)
+            throw new Error(`Unable to start browser ${browserSettings.name} due to: ${error}`);
 
         return worker;
     }
@@ -147,6 +212,8 @@ export default class BrowserStackConnector {
     }
 
     disconnect () {
+        this.hub.close();
+
         return new Promise(resolve => this.localConnection.stop(resolve));
     }
 
