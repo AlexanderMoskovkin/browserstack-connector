@@ -13,11 +13,11 @@ const DEFAULT_BROWSER_OPENING_TIMEOUT     = 60 * 1000;
 const DEFAULT_HUB_PORT = 1000;
 
 export default class BrowserStackConnector {
-    constructor (username, accessKey, servicePort, options = {}) {
+    constructor (username, accessKey, options = {}) {
         this.username  = username;
         this.accessKey = accessKey;
 
-        const { connectorLogging = true } = options;
+        const { connectorLogging = true, servicePort = DEFAULT_HUB_PORT } = options;
 
         this.options          = { connectorLogging };
         this.client           = createClient({ username, password: accessKey });
@@ -121,7 +121,7 @@ export default class BrowserStackConnector {
 
             const hubHandler = id => {
                 if (id === browserId) {
-                    this.hub.removeListener('open', hubHandler);
+                    this.hub.removeListener('browser-opened', hubHandler);
 
                     clearTimeout(timeoutId);
                     resolve();
@@ -129,14 +129,14 @@ export default class BrowserStackConnector {
             };
 
             timeoutId = setTimeout(async () => {
-                this.hub.removeListener('open', hubHandler);
+                this.hub.removeListener('browser-opened', hubHandler);
 
                 await this.stopBrowser(worker.id);
 
                 reject('Browser starting timeout expired');
             }, openingTimeout);
 
-            this.hub.addListener('open', hubHandler);
+            this.hub.addListener('browser-opened', hubHandler);
         });
 
         await waitForUrlOpened;

@@ -29,7 +29,7 @@ export default class Hub extends EventEmitter {
             const url           = req.query.url;
             const urlIdentifier = req.params.id;
 
-            this.emit('open', urlIdentifier);
+            this.emit('browser-opened', urlIdentifier);
 
             return res.redirect(url);
         });
