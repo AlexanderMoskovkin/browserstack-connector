@@ -86,6 +86,8 @@ export default class BrowserStackConnector {
     async _startBrowser (browserSettings, url, { jobName, build }, { workingTimeout, openingTimeout }) {
         const browserId = uid(10);
 
+        let workerInstance = null;
+
         const createWorker = () => {
             return new Promise((resolve, reject) => {
                 const settings = {
@@ -113,9 +115,6 @@ export default class BrowserStackConnector {
             });
         };
 
-        const workerId = await createWorker();
-        const worker   = await this._getWorker(workerId);
-
         const waitForUrlOpened = new Promise((resolve, reject) => {
             let timeoutId = null;
 
@@ -131,7 +130,7 @@ export default class BrowserStackConnector {
             timeoutId = setTimeout(async () => {
                 this.hub.removeListener('browser-opened', hubHandler);
 
-                await this.stopBrowser(worker.id);
+                await this.stopBrowser(workerInstance.id);
 
                 reject('Browser starting timeout expired');
             }, openingTimeout);
@@ -139,11 +138,15 @@ export default class BrowserStackConnector {
             this.hub.addListener('browser-opened', hubHandler);
         });
 
+        const workerId = await createWorker();
+
+        workerInstance = await this._getWorker(workerId);
+
         await waitForUrlOpened;
 
-        this._log(`${browserSettings.name} started. See ${worker.browser_url}`);
+        this._log(`${browserSettings.name} started. See ${workerInstance.browser_url}`);
 
-        return worker;
+        return workerInstance;
     }
 
     async startBrowser (browserSettings, url, { jobName, build } = {}, { maxAttepts, openingTimeout, workingTimeout } = {}) {
