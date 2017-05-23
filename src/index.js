@@ -103,6 +103,9 @@ export default class BrowserStackConnector {
                     localIdentifier: this.tunnelIdentifier
                 };
 
+                if ('realMobile' in browserSettings)
+                    settings.realMobile = browserSettings.realMobile;
+
                 this.client.createWorker(settings, (err, res) => {
                     if (err) {
                         this._log(err);
