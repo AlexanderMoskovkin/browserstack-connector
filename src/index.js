@@ -19,12 +19,13 @@ export default class BrowserStackConnector {
 
         const { connectorLogging = true, servicePort = DEFAULT_HUB_PORT } = options;
 
-        this.options          = { connectorLogging };
-        this.client           = createClient({ username, password: accessKey });
-        this.localConnection  = null;
-        this.tunnelIdentifier = Date.now();
-        this.hubPort          = servicePort || DEFAULT_HUB_PORT;
-        this.hub              = new Hub(this.hubPort);
+        this.options             = { connectorLogging };
+        this.client              = createClient({ username, password: accessKey });
+        this.skipLocalConnection = !!process.env['BROWSERSTACK_NO_LOCAL'];
+        this.localConnection     = null;
+        this.tunnelIdentifier    = Date.now();
+        this.hubPort             = servicePort || DEFAULT_HUB_PORT;
+        this.hub                 = new Hub(this.hubPort);
     }
 
     _log (message) {
@@ -203,6 +204,9 @@ export default class BrowserStackConnector {
             'localIdentifier':        this.tunnelIdentifier
         };
 
+        if (this.skipLocalConnection)
+            return Promise.resolve();
+
         this.localConnection = new BrowserStackLocal();
 
         return new Promise((resolve, reject) => {
@@ -219,6 +223,9 @@ export default class BrowserStackConnector {
 
     disconnect () {
         this.hub.close();
+
+        if (this.skipLocalConnection)
+            return Promise.resolve();
 
         return new Promise(resolve => this.localConnection.stop(resolve));
     }
